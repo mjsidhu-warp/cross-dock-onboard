@@ -29,7 +29,6 @@ export const DEFAULT_RATE_CARD: RateCard = {
   palletIn: 8.5,
   palletOut: 8.5,
   storagePerDay: 3.0,
-  earlyOpenFee: 150.0,
   effectiveDate: "2026-07-01",
 };
 
@@ -45,8 +44,12 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
   facility: {
     sqft: null,
     dockDoors: null,
+    fullTimeEmployees: null,
     storageType: "",
-    earlyOpenWilling: false,
+    afterHoursWilling: false,
+    afterHoursFee: null,
+    holidayWilling: false,
+    holidayFee: null,
   },
   operatingHours: [
     { day: "Monday", isOpen: true, fromTime: "06:00", toTime: "18:00" },
@@ -59,7 +62,7 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
   ],
   capabilities: {
     ltlCrossDock: false,
-    inventoryIMS: false,
+    outsideSoftware: false,
     transload: false,
   },
   techReadiness: {
@@ -75,6 +78,7 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
 export const EMPTY_SETUP: SetupChecklist = {
   rateTermsAccepted: false,
   rateTermsAcceptedAt: null,
+  trainingScheduled: false,
   mobileAppInstalled: false,
   desktopAppInstalled: false,
   testScanInCompleted: false,
@@ -174,12 +178,13 @@ export const MOCK_EARNINGS: EarningsSummary = {
   period: "Jun 22 – Jun 28, 2026",
   palletsIn: 69,
   palletsOut: 68,
-  storageDays: 42,
-  earlyOpenFees: 2,
+  avgDailyStorageCount: 6,
+  storageDays: 42, // 6 pallets/day × 7 days
+  afterHoursOpens: 2,
   ratePerPalletIn: 8.5,
   ratePerPalletOut: 8.5,
   ratePerStorageDay: 3.0,
-  ratePerEarlyOpen: 150.0,
+  ratePerAfterHours: 150.0, // dock-set example rate
   totalEarned: 69 * 8.5 + 68 * 8.5 + 42 * 3.0 + 2 * 150.0,
   paymentStatus: "processing",
 };
@@ -190,12 +195,13 @@ export const MOCK_EARNINGS_HISTORY: EarningsSummary[] = [
     period: "Jun 15 – Jun 21, 2026",
     palletsIn: 85,
     palletsOut: 82,
+    avgDailyStorageCount: 5.4,
     storageDays: 38,
-    earlyOpenFees: 1,
+    afterHoursOpens: 1,
     ratePerPalletIn: 8.5,
     ratePerPalletOut: 8.5,
     ratePerStorageDay: 3.0,
-    ratePerEarlyOpen: 150.0,
+    ratePerAfterHours: 150.0,
     totalEarned: 85 * 8.5 + 82 * 8.5 + 38 * 3.0 + 1 * 150.0,
     paymentStatus: "paid",
   },
@@ -203,12 +209,13 @@ export const MOCK_EARNINGS_HISTORY: EarningsSummary[] = [
     period: "Jun 8 – Jun 14, 2026",
     palletsIn: 78,
     palletsOut: 75,
+    avgDailyStorageCount: 4.3,
     storageDays: 30,
-    earlyOpenFees: 0,
+    afterHoursOpens: 0,
     ratePerPalletIn: 8.5,
     ratePerPalletOut: 8.5,
     ratePerStorageDay: 3.0,
-    ratePerEarlyOpen: 150.0,
+    ratePerAfterHours: 150.0,
     totalEarned: 78 * 8.5 + 75 * 8.5 + 30 * 3.0 + 0,
     paymentStatus: "paid",
   },

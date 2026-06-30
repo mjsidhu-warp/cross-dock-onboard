@@ -23,8 +23,16 @@ export interface WarehouseProfile {
   facility: {
     sqft: number | null;
     dockDoors: number | null;
+    fullTimeEmployees: number | null;
     storageType: "covered" | "outdoor" | "both" | "";
-    earlyOpenWilling: boolean;
+    // Willing to work outside normal operating hours (after-hours / before-open)
+    afterHoursWilling: boolean;
+    // Dock-set fee per after-hours occurrence (not standardized by Warp)
+    afterHoursFee: number | null;
+    // Willing to open on holidays
+    holidayWilling: boolean;
+    // Dock-set fee per holiday occurrence
+    holidayFee: number | null;
   };
   operatingHours: {
     day: string;
@@ -34,7 +42,8 @@ export interface WarehouseProfile {
   }[];
   capabilities: {
     ltlCrossDock: boolean;
-    inventoryIMS: boolean;
+    // Can the dock run outside (client/third-party) software, not just Warp's?
+    outsideSoftware: boolean;
     transload: boolean;
   };
   techReadiness: {
@@ -50,6 +59,7 @@ export interface WarehouseProfile {
 export interface SetupChecklist {
   rateTermsAccepted: boolean;
   rateTermsAcceptedAt: string | null;
+  trainingScheduled: boolean;
   mobileAppInstalled: boolean;
   desktopAppInstalled: boolean;
   testScanInCompleted: boolean;
@@ -91,12 +101,17 @@ export interface EarningsSummary {
   period: string;
   palletsIn: number;
   palletsOut: number;
+  // Average number of pallets in storage per day across the period
+  avgDailyStorageCount: number;
+  // Billable pallet-days = avgDailyStorageCount × days in period
   storageDays: number;
-  earlyOpenFees: number;
+  // After-hours / outside-normal-hours opens this period (dock-set rate)
+  afterHoursOpens: number;
   ratePerPalletIn: number;
   ratePerPalletOut: number;
   ratePerStorageDay: number;
-  ratePerEarlyOpen: number;
+  // Dock-set per-occurrence rate (not standardized by Warp)
+  ratePerAfterHours: number;
   totalEarned: number;
   paymentStatus: "pending" | "processing" | "paid";
 }
@@ -105,6 +120,6 @@ export interface RateCard {
   palletIn: number;
   palletOut: number;
   storagePerDay: number;
-  earlyOpenFee: number;
+  // After-hours and holiday fees are set per dock during onboarding, not standardized
   effectiveDate: string;
 }

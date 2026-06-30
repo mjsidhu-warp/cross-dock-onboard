@@ -72,6 +72,8 @@ export default function PortalPage() {
   /* ── Setup checklist state ── */
   const [rateAccepted, setRateAccepted] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
+  const [sopsReviewed, setSopsReviewed] = useState(false);
+  const [trainingScheduled, setTrainingScheduled] = useState(false);
   const [mobileOk, setMobileOk] = useState(false);
   const [desktopOk, setDesktopOk] = useState(false);
   const [scanInOk, setScanInOk] = useState(false);
@@ -93,13 +95,14 @@ export default function PortalPage() {
 
   const setupSteps = [
     { done: rateAccepted, label: "Rate card accepted" },
-    { done: false, label: "SOPs reviewed" },
+    { done: sopsReviewed, label: "SOPs reviewed" },
+    { done: trainingScheduled, label: "Onboarding training scheduled" },
     { done: mobileOk, label: "Mobile app logged in" },
     { done: desktopOk, label: "Desktop app logged in" },
     { done: labelOk, label: "Label printer set up" },
     { done: scanInOk, label: "Test scan-in completed" },
     { done: scanOutOk, label: "Test scan-out completed" },
-    { done: goLiveRequested, label: "Go-live requested" },
+    { done: goLiveRequested, label: "Activation requested" },
   ];
   const setupDone = setupSteps.filter((s) => s.done).length;
   // All steps are required; go-live is the last one, so unlock it when all others are done
@@ -313,9 +316,10 @@ export default function PortalPage() {
                         {/* Facility */}
                         {sec.key === "facility" && (
                           <div className="space-y-4">
-                            <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-4 sm:grid-cols-3">
                               <DarkInput label="Square footage (approx)" type="number" placeholder="10000" value={data.facility.sqft?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, sqft: v ? Number(v) : null } })} />
                               <DarkInput label="Dock doors" type="number" placeholder="4" value={data.facility.dockDoors?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, dockDoors: v ? Number(v) : null } })} />
+                              <DarkInput label="Full-time dock staff" type="number" placeholder="6" value={data.facility.fullTimeEmployees?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, fullTimeEmployees: v ? Number(v) : null } })} />
                             </div>
                             <DarkSelect label="Storage type" value={data.facility.storageType} onChange={(v) => update({ facility: { ...data.facility, storageType: v as "covered" | "outdoor" | "both" | "" } })} options={[{ value: "covered", label: "Covered / indoor" }, { value: "outdoor", label: "Outdoor" }, { value: "both", label: "Both" }]} placeholder="Select type" />
 
@@ -344,13 +348,37 @@ export default function PortalPage() {
                               </div>
                             </div>
 
-                            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-warp-border bg-warp-bg p-4 hover:border-warp-border-light">
-                              <input type="checkbox" checked={data.facility.earlyOpenWilling} onChange={(e) => update({ facility: { ...data.facility, earlyOpenWilling: e.target.checked } })} className="accent-warp-green" />
-                              <div>
-                                <p className="text-sm font-medium text-warp-text">Willing to open early?</p>
-                                <p className="text-xs text-warp-muted">Earn an early-open fee when Warp requests it.</p>
-                              </div>
-                            </label>
+                            {/* After-hours / outside-normal-hours */}
+                            <div className="rounded-lg border border-warp-border bg-warp-bg p-4">
+                              <label className="flex cursor-pointer items-center gap-3">
+                                <input type="checkbox" checked={data.facility.afterHoursWilling} onChange={(e) => update({ facility: { ...data.facility, afterHoursWilling: e.target.checked, afterHoursFee: e.target.checked ? data.facility.afterHoursFee : null } })} className="accent-warp-green" />
+                                <div>
+                                  <p className="text-sm font-medium text-warp-text">Willing to work after hours / outside normal hours?</p>
+                                  <p className="text-xs text-warp-muted">Some lanes need inbound after close or an early re-open for outbound. You set your own fee — it isn&apos;t standardized.</p>
+                                </div>
+                              </label>
+                              {data.facility.afterHoursWilling && (
+                                <div className="mt-3 pl-7">
+                                  <DarkInput label="Your after-hours fee (per occurrence, USD)" type="number" placeholder="150" value={data.facility.afterHoursFee?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, afterHoursFee: v ? Number(v) : null } })} />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Holiday */}
+                            <div className="rounded-lg border border-warp-border bg-warp-bg p-4">
+                              <label className="flex cursor-pointer items-center gap-3">
+                                <input type="checkbox" checked={data.facility.holidayWilling} onChange={(e) => update({ facility: { ...data.facility, holidayWilling: e.target.checked, holidayFee: e.target.checked ? data.facility.holidayFee : null } })} className="accent-warp-green" />
+                                <div>
+                                  <p className="text-sm font-medium text-warp-text">Willing to open on holidays?</p>
+                                  <p className="text-xs text-warp-muted">Open on observed holidays when Warp requests it. You set your own holiday fee.</p>
+                                </div>
+                              </label>
+                              {data.facility.holidayWilling && (
+                                <div className="mt-3 pl-7">
+                                  <DarkInput label="Your holiday fee (per occurrence, USD)" type="number" placeholder="250" value={data.facility.holidayFee?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, holidayFee: v ? Number(v) : null } })} />
+                                </div>
+                              )}
+                            </div>
                             <button onClick={() => setOpenReg("capabilities")} className="mt-2 text-xs font-medium text-warp-green hover:underline">
                               Next: Capabilities →
                             </button>
@@ -362,7 +390,7 @@ export default function PortalPage() {
                           <div className="space-y-3">
                             {[
                               { key: "ltlCrossDock" as const, label: "LTL Cross-dock", desc: "Receive, sort, and stage pallets for outbound routes" },
-                              { key: "inventoryIMS" as const, label: "Inventory / IMS", desc: "Manage inventory counts and storage for clients" },
+                              { key: "outsideSoftware" as const, label: "Run outside software", desc: "Can your team run a client's or third-party software on the dock? (Warp's scanning + IMS tools are provided — this is for customers who require their own system.)" },
                               { key: "transload" as const, label: "Transload", desc: "Transfer freight between trailers or containers" },
                             ].map((cap) => (
                               <label key={cap.key} className="flex cursor-pointer items-start gap-4 rounded-xl border border-warp-border bg-warp-bg p-4 transition-colors hover:border-warp-border-light">
@@ -446,8 +474,16 @@ export default function PortalPage() {
         <div className="mx-auto max-w-3xl px-6">
           <h2 className="text-3xl font-bold text-white">Setup checklist</h2>
           <p className="mt-2 text-warp-secondary">
-            Complete these steps to go live and start receiving freight.
+            Complete these steps to activate your dock and start receiving freight.
           </p>
+
+          {/* WTCH assigned on approval */}
+          <div className="mt-6 flex items-center gap-3 rounded-xl border border-warp-border-light bg-warp-elevated p-4">
+            <Warehouse className="h-5 w-5 shrink-0 text-warp-green" />
+            <p className="text-sm text-warp-secondary">
+              Your dock code <span className="font-mono font-semibold text-warp-text">WTCH-LAX-9</span> was assigned when your application was approved. Use it for the test scans below — you&apos;re working in the real system, not a sandbox.
+            </p>
+          </div>
 
           {/* Progress */}
           <div className="mt-6 flex items-center justify-between text-sm">
@@ -470,8 +506,8 @@ export default function PortalPage() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-warp-green" />
                 <div>
-                  <p className="text-sm font-semibold text-warp-green">Go-live request submitted</p>
-                  <p className="mt-1 text-sm text-warp-secondary">Warp will review and activate your dock within 1–2 business days.</p>
+                  <p className="text-sm font-semibold text-warp-green">Activation request submitted</p>
+                  <p className="mt-1 text-sm text-warp-secondary">Warp will activate dock WTCH-LAX-9 within 1–2 business days. You&apos;ll start receiving routed freight once live.</p>
                 </div>
               </div>
             </div>
@@ -484,13 +520,23 @@ export default function PortalPage() {
             </ChecklistRow>
 
             {/* SOPs */}
-            <ChecklistRow done={false} label="Review SOPs" desc="Read the Crossdock App SOP before your first scan. Covers inbound, outbound, exceptions, and driver pickup assist." icon={FileText} optional={false}>
+            <ChecklistRow done={sopsReviewed} label="Review SOPs" desc="Read the Crossdock App SOP before your first scan. Covers inbound, outbound, exceptions, and driver pickup assist. IMS docks also review the IMS Inbound and BTTR Audit SOPs." icon={FileText} optional={false}>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-warp-border px-3 py-1.5 text-xs text-warp-muted">Crossdock App SOP v3.0</span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-warp-border px-3 py-1.5 text-xs text-warp-muted">IMS Inbound SOP v1.5</span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-warp-border px-3 py-1.5 text-xs text-warp-muted">BTTR Audit SOP v1.4</span>
-                <GreenBtn onClick={() => {}}>Mark reviewed</GreenBtn>
+                <GreenBtn onClick={() => setSopsReviewed(true)}>Mark reviewed</GreenBtn>
               </div>
+            </ChecklistRow>
+
+            {/* Onboarding training */}
+            <ChecklistRow done={trainingScheduled} label="Schedule onboarding training" desc="Book a live training session with the Warp cross-dock team. Covers scanning, exceptions, and — for IMS docks — inventory and BTTR audits. Required before your test scans." icon={Truck} optional={false}>
+              {!trainingScheduled && (
+                <div className="flex gap-2">
+                  <a href="https://www.wearewarp.com/book-a-meeting" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-warp-border px-3 py-1.5 text-xs text-warp-secondary hover:border-warp-border-light">Book a session <ExternalLink className="h-3 w-3" /></a>
+                  <GreenBtn onClick={() => setTrainingScheduled(true)}>Mark scheduled</GreenBtn>
+                </div>
+              )}
             </ChecklistRow>
 
             {/* Mobile scanner app */}
@@ -528,15 +574,15 @@ export default function PortalPage() {
               {!scanOutOk && <GreenBtn onClick={() => setScanOutOk(true)}>Mark done</GreenBtn>}
             </ChecklistRow>
 
-            {/* Go live */}
-            <ChecklistRow done={goLiveRequested} label="Request go-live" desc="Warp assigns your WTCH code and activates your dock. You'll start receiving routed freight." icon={Rocket} optional={false}>
+            {/* Activation */}
+            <ChecklistRow done={goLiveRequested} label="Request activation" desc="Your WTCH code is already assigned. Warp does a final review and activates your dock — you'll start receiving routed freight." icon={Rocket} optional={false}>
               {!goLiveRequested && (
                 <button
                   onClick={() => canGoLive && setGoLiveRequested(true)}
                   disabled={!canGoLive}
                   className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${canGoLive ? "bg-warp-green text-warp-bg hover:bg-warp-green-dim" : "bg-warp-border text-warp-muted cursor-not-allowed"}`}
                 >
-                  {canGoLive ? "Request go-live" : "Complete all steps first"}
+                  {canGoLive ? "Request activation" : "Complete all steps first"}
                 </button>
               )}
             </ChecklistRow>
@@ -777,6 +823,14 @@ export default function PortalPage() {
             </span>
           </p>
 
+          {/* Quick stats */}
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={ArrowDownToLine} iconColor="text-warp-blue" label="Pallets in" value={MOCK_EARNINGS.palletsIn.toString()} sub={`$${MOCK_EARNINGS.ratePerPalletIn.toFixed(2)} each`} />
+            <StatCard icon={ArrowUpFromLine} iconColor="text-warp-amber" label="Pallets out" value={MOCK_EARNINGS.palletsOut.toString()} sub={`$${MOCK_EARNINGS.ratePerPalletOut.toFixed(2)} each`} />
+            <StatCard icon={Warehouse} iconColor="text-warp-green" label="Avg daily storage" value={`${MOCK_EARNINGS.avgDailyStorageCount}`} sub={`pallets/day · $${MOCK_EARNINGS.ratePerStorageDay.toFixed(2)}/day`} />
+            <StatCard icon={DollarSign} iconColor="text-warp-green" label="This week" value={`$${MOCK_EARNINGS.totalEarned.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} sub={MOCK_EARNINGS.paymentStatus} />
+          </div>
+
           {/* Breakdown */}
           <div className="mt-8 rounded-xl border border-warp-border bg-warp-elevated overflow-hidden">
             <div className="border-b border-warp-border px-6 py-4">
@@ -797,8 +851,8 @@ export default function PortalPage() {
                 {[
                   { svc: "Pallet in (receiving scan)", qty: MOCK_EARNINGS.palletsIn, rate: MOCK_EARNINGS.ratePerPalletIn },
                   { svc: "Pallet out (departure scan)", qty: MOCK_EARNINGS.palletsOut, rate: MOCK_EARNINGS.ratePerPalletOut },
-                  { svc: "Storage (per pallet / day)", qty: MOCK_EARNINGS.storageDays, rate: MOCK_EARNINGS.ratePerStorageDay },
-                  { svc: "Early-open fee", qty: MOCK_EARNINGS.earlyOpenFees, rate: MOCK_EARNINGS.ratePerEarlyOpen },
+                  { svc: `Storage (pallet-days · avg ${MOCK_EARNINGS.avgDailyStorageCount}/day)`, qty: MOCK_EARNINGS.storageDays, rate: MOCK_EARNINGS.ratePerStorageDay },
+                  { svc: "After-hours / outside-hours opens", qty: MOCK_EARNINGS.afterHoursOpens, rate: MOCK_EARNINGS.ratePerAfterHours },
                 ].map((row) => (
                   <tr key={row.svc} className="hover:bg-warp-card/50">
                     <td className="px-6 py-3 text-warp-text">{row.svc}</td>
@@ -899,20 +953,21 @@ export default function PortalPage() {
                 </thead>
                 <tbody className="divide-y divide-warp-border">
                   {[
-                    { svc: "Pallet in (receiving scan)", rate: DEFAULT_RATE_CARD.palletIn },
-                    { svc: "Pallet out (departure scan)", rate: DEFAULT_RATE_CARD.palletOut },
-                    { svc: "Storage (per pallet / day)", rate: DEFAULT_RATE_CARD.storagePerDay },
-                    { svc: "Early-open fee", rate: DEFAULT_RATE_CARD.earlyOpenFee },
+                    { svc: "Pallet in (receiving scan)", rate: `$${DEFAULT_RATE_CARD.palletIn.toFixed(2)}` },
+                    { svc: "Pallet out (departure scan)", rate: `$${DEFAULT_RATE_CARD.palletOut.toFixed(2)}` },
+                    { svc: "Storage (per pallet / day)", rate: `$${DEFAULT_RATE_CARD.storagePerDay.toFixed(2)}` },
+                    { svc: "After-hours / outside normal hours", rate: data.facility.afterHoursFee != null ? `$${data.facility.afterHoursFee.toFixed(2)}` : "Set per dock" },
+                    { svc: "Holiday open", rate: data.facility.holidayFee != null ? `$${data.facility.holidayFee.toFixed(2)}` : "Set per dock" },
                   ].map((r) => (
                     <tr key={r.svc}>
                       <td className="py-3 text-warp-text">{r.svc}</td>
-                      <td className="py-3 text-right font-semibold text-warp-green">${r.rate.toFixed(2)}</td>
+                      <td className="py-3 text-right font-semibold text-warp-green">{r.rate}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p className="mt-4 text-xs text-warp-muted">
-                Rates are per-pallet for scan-in and scan-out. Storage billed per pallet per calendar day. Early-open fee applies for access outside normal hours.
+                Pallet-in, pallet-out, and storage are standard Warp rates. After-hours and holiday fees are set per dock during registration — they aren&apos;t standardized, since demand varies by lane (e.g. opening late on inbound days and early on outbound days for a specific client).
               </p>
               <div className="mt-6 flex justify-end gap-3">
                 <button onClick={() => setShowRateModal(false)} className="rounded-full border border-warp-border px-4 py-2 text-sm text-warp-secondary hover:border-warp-border-light">
