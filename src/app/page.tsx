@@ -31,12 +31,13 @@ import {
   WARP_MARKETS,
   EMPTY_WAREHOUSE,
   DEFAULT_RATE_CARD,
+  PRINTER_SETUP_OPTIONS,
   MOCK_ROUTES,
   MOCK_SCANS,
   MOCK_EARNINGS,
   MOCK_EARNINGS_HISTORY,
 } from "@/lib/mock-data";
-import type { WarehouseProfile } from "@/lib/types";
+import type { CustomRateProposal, PrinterSetup, WarehouseProfile } from "@/lib/types";
 
 /* ─── Sticky nav sections ─── */
 const SECTIONS = [
@@ -71,6 +72,12 @@ export default function PortalPage() {
 
   /* ── Setup checklist state ── */
   const [rateAccepted, setRateAccepted] = useState(false);
+  const [rateMode, setRateMode] = useState<"default" | "custom">("default");
+  const [customRates, setCustomRates] = useState<CustomRateProposal>({
+    palletIn: DEFAULT_RATE_CARD.palletIn,
+    palletOut: DEFAULT_RATE_CARD.palletOut,
+    storagePerDay: DEFAULT_RATE_CARD.storagePerDay,
+  });
   const [showRateModal, setShowRateModal] = useState(false);
   const [sopsReviewed, setSopsReviewed] = useState(false);
   const [trainingScheduled, setTrainingScheduled] = useState(false);
@@ -88,13 +95,18 @@ export default function PortalPage() {
     setData((prev) => ({ ...prev, ...partial }));
   }
 
-  const techAllNo =
-    data.techReadiness.hasDevices === false &&
-    data.techReadiness.hasLabelPrinter === false &&
-    data.techReadiness.hasFloorInternet === false;
+  const techMissingSoft =
+    data.techReadiness.hasDevices === false ||
+    data.techReadiness.printerSetup === "none";
+
+  const isIneligible = data.techReadiness.hasWifiOnDockFloor === false;
+
+  const afterHoursAny =
+    data.facility.afterHoursInboundWilling ||
+    data.facility.afterHoursOutboundWilling;
 
   const setupSteps = [
-    { done: rateAccepted, label: "Rate card accepted" },
+    { done: rateAccepted, label: rateMode === "custom" ? "Custom rates submitted" : "Rate card accepted" },
     { done: sopsReviewed, label: "SOPs reviewed" },
     { done: trainingScheduled, label: "Onboarding training scheduled" },
     { done: mobileOk, label: "Mobile app logged in" },
@@ -348,29 +360,90 @@ export default function PortalPage() {
                               </div>
                             </div>
 
-                            {/* After-hours / outside-normal-hours */}
-                            <div className="rounded-lg border border-warp-border bg-warp-bg p-4">
-                              <label className="flex cursor-pointer items-center gap-3">
-                                <input type="checkbox" checked={data.facility.afterHoursWilling} onChange={(e) => update({ facility: { ...data.facility, afterHoursWilling: e.target.checked, afterHoursFee: e.target.checked ? data.facility.afterHoursFee : null } })} className="accent-warp-green" />
+                            {/* Extended hours — split for clarity */}
+                            <div className="rounded-lg border border-warp-border bg-warp-bg p-4 space-y-4">
+                              <div>
+                                <p className="text-sm font-semibold text-warp-text">Extended hours (optional)</p>
+                                <p className="mt-1 text-xs text-warp-muted">
+                                  Some Warp lanes need access outside your normal operating hours. Select what you can support, then set one per-occurrence fee (same fee whether inbound after close or early outbound open).
+                                </p>
+                              </div>
+
+                              <label className="flex cursor-pointer items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={data.facility.afterHoursInboundWilling}
+                                  onChange={(e) =>
+                                    update({
+                                      facility: {
+                                        ...data.facility,
+                                        afterHoursInboundWilling: e.target.checked,
+                                        afterHoursFee:
+                                          e.target.checked || data.facility.afterHoursOutboundWilling
+                                            ? data.facility.afterHoursFee
+                                            : null,
+                                      },
+                                    })
+                                  }
+                                  className="mt-0.5 accent-warp-green"
+                                />
                                 <div>
-                                  <p className="text-sm font-medium text-warp-text">Willing to work after hours / outside normal hours?</p>
-                                  <p className="text-xs text-warp-muted">Some lanes need inbound after close or an early re-open for outbound. You set your own fee — it isn&apos;t standardized.</p>
+                                  <p className="text-sm font-medium text-warp-text">Inbound after close</p>
+                                  <p className="text-xs text-warp-muted">Receive freight after your normal closing time (e.g. lane needs a 10 PM inbound).</p>
                                 </div>
                               </label>
-                              {data.facility.afterHoursWilling && (
-                                <div className="mt-3 pl-7">
-                                  <DarkInput label="Your after-hours fee (per occurrence, USD)" type="number" placeholder="150" value={data.facility.afterHoursFee?.toString() ?? ""} onChange={(v) => update({ facility: { ...data.facility, afterHoursFee: v ? Number(v) : null } })} />
+
+                              <label className="flex cursor-pointer items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={data.facility.afterHoursOutboundWilling}
+                                  onChange={(e) =>
+                                    update({
+                                      facility: {
+                                        ...data.facility,
+                                        afterHoursOutboundWilling: e.target.checked,
+                                        afterHoursFee:
+                                          e.target.checked || data.facility.afterHoursInboundWilling
+                                            ? data.facility.afterHoursFee
+                                            : null,
+                                      },
+                                    })
+                                  }
+                                  className="mt-0.5 accent-warp-green"
+                                />
+                                <div>
+                                  <p className="text-sm font-medium text-warp-text">Early reopen for outbound</p>
+                                  <p className="text-xs text-warp-muted">Open before your normal start time so outbound freight can be picked up (e.g. 5 AM outbound day).</p>
+                                </div>
+                              </label>
+
+                              {afterHoursAny && (
+                                <div className="pl-7">
+                                  <DarkInput
+                                    label="Your extended-hours fee (per occurrence, USD)"
+                                    type="number"
+                                    placeholder="150"
+                                    value={data.facility.afterHoursFee?.toString() ?? ""}
+                                    onChange={(v) =>
+                                      update({
+                                        facility: {
+                                          ...data.facility,
+                                          afterHoursFee: v ? Number(v) : null,
+                                        },
+                                      })
+                                    }
+                                  />
                                 </div>
                               )}
                             </div>
 
-                            {/* Holiday */}
+                            {/* Holiday operations */}
                             <div className="rounded-lg border border-warp-border bg-warp-bg p-4">
-                              <label className="flex cursor-pointer items-center gap-3">
-                                <input type="checkbox" checked={data.facility.holidayWilling} onChange={(e) => update({ facility: { ...data.facility, holidayWilling: e.target.checked, holidayFee: e.target.checked ? data.facility.holidayFee : null } })} className="accent-warp-green" />
+                              <label className="flex cursor-pointer items-start gap-3">
+                                <input type="checkbox" checked={data.facility.holidayWilling} onChange={(e) => update({ facility: { ...data.facility, holidayWilling: e.target.checked, holidayFee: e.target.checked ? data.facility.holidayFee : null } })} className="mt-0.5 accent-warp-green" />
                                 <div>
-                                  <p className="text-sm font-medium text-warp-text">Willing to open on holidays?</p>
-                                  <p className="text-xs text-warp-muted">Open on observed holidays when Warp requests it. You set your own holiday fee.</p>
+                                  <p className="text-sm font-medium text-warp-text">Holiday operations (optional)</p>
+                                  <p className="text-xs text-warp-muted">Open on observed US holidays when Warp requests it — separate from extended weekday hours. You set your own per-occurrence holiday fee.</p>
                                 </div>
                               </label>
                               {data.facility.holidayWilling && (
@@ -396,7 +469,9 @@ export default function PortalPage() {
                               <label key={cap.key} className="flex cursor-pointer items-start gap-4 rounded-xl border border-warp-border bg-warp-bg p-4 transition-colors hover:border-warp-border-light">
                                 <input type="checkbox" checked={data.capabilities[cap.key]} onChange={(e) => update({ capabilities: { ...data.capabilities, [cap.key]: e.target.checked } })} className="mt-0.5 accent-warp-green" />
                                 <div>
-                                  <p className="text-sm font-medium text-warp-text">{cap.label}</p>
+                                  <p className="text-sm font-medium text-warp-text">
+                                    {cap.label}
+                                  </p>
                                   <p className="text-xs text-warp-muted">{cap.desc}</p>
                                 </div>
                               </label>
@@ -410,42 +485,119 @@ export default function PortalPage() {
                         {/* Tech readiness */}
                         {sec.key === "tech" && (
                           <div className="space-y-4">
+                            <div className="rounded-xl border border-warp-border-light bg-warp-bg p-4">
+                              <p className="text-xs font-medium text-warp-secondary">
+                                Required infrastructure
+                              </p>
+                              <p className="mt-1 text-xs text-warp-muted">
+                                Wi-Fi on the dock floor is mandatory. Facilities without it are flagged ineligible and cannot submit an application.
+                              </p>
+                            </div>
+
+                            {isIneligible && (
+                              <div className="rounded-xl border border-red-500/40 bg-warp-red-dim p-4">
+                                <div className="flex items-start gap-3">
+                                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warp-red" />
+                                  <div>
+                                    <p className="text-sm font-semibold text-warp-red">Not eligible without dock-floor Wi-Fi</p>
+                                    <p className="mt-1 text-xs text-warp-secondary">
+                                      Warp requires Wi-Fi coverage on the dock floor for real-time scan sync. Cell signal alone does not meet this requirement. Install Wi-Fi before applying, or contact{" "}
+                                      <a href="mailto:crossdocks@wearewarp.com" className="text-warp-green hover:underline">crossdocks@wearewarp.com</a>.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {[
-                              { key: "hasDevices" as const, q: "Do you have a phone or tablet for scanning?", hint: "iPhone or Android with a camera — used with wh.wearewarp.com scanner app" },
-                              { key: "hasLabelPrinter" as const, q: "Do you have a label printer?", hint: "For printing blank Warp pallet ID labels (thermal or inkjet)" },
-                              { key: "hasFloorInternet" as const, q: "Do you have Wi-Fi or cell signal on the dock floor?", hint: "Required for real-time scan sync and route visibility" },
+                              { key: "hasDevices" as const, q: "Do you have a phone or tablet for scanning?", hint: "iPhone or Android with a camera — used with wh.wearewarp.com scanner app", required: false },
+                              { key: "hasWifiOnDockFloor" as const, q: "Do you have Wi-Fi coverage on the dock floor?", hint: "Required — not optional. Cell signal alone does not qualify.", required: true },
                             ].map((item) => (
-                              <div key={item.key} className="rounded-xl border border-warp-border bg-warp-bg p-4">
-                                <p className="text-sm font-medium text-warp-text">{item.q}</p>
+                              <div key={item.key} className={`rounded-xl border bg-warp-bg p-4 ${item.required ? "border-warp-border-light" : "border-warp-border"}`}>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-warp-text">{item.q}</p>
+                                  {item.required && (
+                                    <span className="rounded-full bg-warp-red-dim px-2 py-0.5 text-[10px] font-semibold text-warp-red">Required</span>
+                                  )}
+                                </div>
                                 <p className="mt-0.5 text-xs text-warp-muted">{item.hint}</p>
                                 <div className="mt-3 flex gap-2">
                                   <button onClick={() => update({ techReadiness: { ...data.techReadiness, [item.key]: true } })} className={`rounded-lg border px-4 py-1.5 text-xs font-medium transition-colors ${data.techReadiness[item.key] === true ? "border-warp-green bg-warp-green text-warp-bg" : "border-warp-border text-warp-secondary hover:border-warp-border-light"}`}>
                                     Yes
                                   </button>
                                   <button onClick={() => update({ techReadiness: { ...data.techReadiness, [item.key]: false } })} className={`rounded-lg border px-4 py-1.5 text-xs font-medium transition-colors ${data.techReadiness[item.key] === false ? "border-warp-red bg-warp-red-dim text-warp-red" : "border-warp-border text-warp-secondary hover:border-warp-border-light"}`}>
-                                    Not yet
+                                    {item.key === "hasWifiOnDockFloor" ? "No" : "Not yet"}
                                   </button>
                                 </div>
                               </div>
                             ))}
-                            {/* Security cameras — not a hard gate */}
+
                             <div className="rounded-xl border border-warp-border bg-warp-bg p-4">
-                              <p className="text-sm font-medium text-warp-text">Do you have security cameras in your facility?</p>
-                              <p className="mt-0.5 text-xs text-warp-muted">Not required, but reviewed by our ops team as part of facility safety</p>
-                              <div className="mt-3 flex gap-2">
-                                {["Yes", "No"].map((v) => (
-                                  <button key={v} onClick={() => update({ techReadiness: { ...data.techReadiness } })} className="rounded-lg border border-warp-border px-4 py-1.5 text-xs font-medium text-warp-secondary hover:border-warp-border-light">{v}</button>
+                              <p className="text-sm font-medium text-warp-text">What printer do you have?</p>
+                              <p className="mt-0.5 text-xs text-warp-muted">Label printers are used for Warp pallet ID labels at warehouse.wearewarp.com</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {PRINTER_SETUP_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.value}
+                                    onClick={() =>
+                                      update({
+                                        techReadiness: {
+                                          ...data.techReadiness,
+                                          printerSetup: option.value as PrinterSetup,
+                                        },
+                                      })
+                                    }
+                                    className={`rounded-lg border px-4 py-1.5 text-xs font-medium transition-colors ${
+                                      data.techReadiness.printerSetup === option.value
+                                        ? option.value === "none"
+                                          ? "border-warp-red bg-warp-red-dim text-warp-red"
+                                          : "border-warp-green bg-warp-green text-warp-bg"
+                                        : "border-warp-border text-warp-secondary hover:border-warp-border-light"
+                                    }`}
+                                  >
+                                    {option.label}
+                                  </button>
                                 ))}
                               </div>
                             </div>
 
-                            {techAllNo && (
+                            {/* Security cameras — not a hard gate */}
+                            <div className="rounded-xl border border-warp-border bg-warp-bg p-4">
+                              <p className="text-sm font-medium text-warp-text">Do you have security cameras in your facility?</p>
+                              <p className="mt-0.5 text-xs text-warp-muted">Not required for eligibility, but reviewed by our ops team as part of facility safety</p>
+                              <div className="mt-3 flex gap-2">
+                                {(["Yes", "No"] as const).map((v) => (
+                                  <button
+                                    key={v}
+                                    onClick={() =>
+                                      update({
+                                        techReadiness: {
+                                          ...data.techReadiness,
+                                          hasSecurityCameras: v === "Yes",
+                                        },
+                                      })
+                                    }
+                                    className={`rounded-lg border px-4 py-1.5 text-xs font-medium transition-colors ${
+                                      data.techReadiness.hasSecurityCameras === (v === "Yes")
+                                        ? v === "Yes"
+                                          ? "border-warp-green bg-warp-green text-warp-bg"
+                                          : "border-warp-border-light text-warp-secondary"
+                                        : "border-warp-border text-warp-secondary hover:border-warp-border-light"
+                                    }`}
+                                  >
+                                    {v}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {techMissingSoft && !isIneligible && (
                               <div className="rounded-xl border border-amber-500/30 bg-warp-amber-dim p-4">
                                 <div className="flex items-start gap-3">
                                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warp-amber" />
                                   <div>
-                                    <p className="text-sm font-semibold text-warp-amber">You&apos;ll need these to run Warp freight</p>
-                                    <p className="mt-1 text-xs text-warp-secondary">You can still submit — a Warp team member will reach out with what you need.</p>
+                                    <p className="text-sm font-semibold text-warp-amber">Additional setup needed before go-live</p>
+                                    <p className="mt-1 text-xs text-warp-secondary">You can still submit — a Warp team member will follow up on scanning devices or printer setup before activation.</p>
                                   </div>
                                 </div>
                               </div>
@@ -453,9 +605,14 @@ export default function PortalPage() {
 
                             <button
                               onClick={() => setSubmitted(true)}
-                              className="mt-4 w-full rounded-full bg-warp-green px-6 py-3 text-sm font-semibold text-warp-bg transition-colors hover:bg-warp-green-dim"
+                              disabled={isIneligible}
+                              className={`mt-4 w-full rounded-full px-6 py-3 text-sm font-semibold transition-colors ${
+                                isIneligible
+                                  ? "cursor-not-allowed bg-warp-border text-warp-muted"
+                                  : "bg-warp-green text-warp-bg hover:bg-warp-green-dim"
+                              }`}
                             >
-                              Submit registration
+                              {isIneligible ? "Cannot submit — Wi-Fi required" : "Submit registration"}
                             </button>
                           </div>
                         )}
@@ -483,6 +640,19 @@ export default function PortalPage() {
             <p className="text-sm text-warp-secondary">
               Your dock code <span className="font-mono font-semibold text-warp-text">WTCH-LAX-9</span> was assigned when your application was approved. Use it for the test scans below — you&apos;re working in the real system, not a sandbox.
             </p>
+          </div>
+
+          {/* Mock test scenario callout */}
+          <div className="mt-6 rounded-xl border border-warp-blue/30 bg-warp-blue-dim p-4">
+            <div className="flex items-start gap-3">
+              <ScanBarcode className="mt-0.5 h-5 w-5 shrink-0 text-warp-blue" />
+              <div>
+                <p className="text-sm font-semibold text-warp-text">Mock test scan scenario</p>
+                <p className="mt-1 text-xs text-warp-secondary">
+                  Before activation, you&apos;ll run a practice scan-in and scan-out using your assigned WTCH code. Warp uses this mock scenario to verify your scanner app, label printer, and dock-floor Wi-Fi are working — no live freight is routed until you pass.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Progress */}
@@ -515,8 +685,13 @@ export default function PortalPage() {
 
           <div className="mt-6 space-y-2">
             {/* Rate terms */}
-            <ChecklistRow done={rateAccepted} label="Accept rate card" desc="Pallet in / out, storage per day, early-open fee. All pallets must be scanned — missed scans are excluded from invoicing." icon={FileText} optional={false}>
-              {!rateAccepted && <GreenBtn onClick={() => setShowRateModal(true)}>View &amp; accept rate card</GreenBtn>}
+            <ChecklistRow done={rateAccepted} label={rateMode === "custom" ? "Custom rates submitted for review" : "Accept rate card"} desc={rateMode === "custom" ? "Your proposed pallet and storage rates were sent to Warp for approval. You can proceed with setup while ops reviews." : "Accept Warp's standard pallet in/out and storage rates, or propose your own. After-hours and holiday fees use what you entered during registration."} icon={FileText} optional={false}>
+              {!rateAccepted && <GreenBtn onClick={() => setShowRateModal(true)}>View rates &amp; accept or propose custom</GreenBtn>}
+              {rateAccepted && rateMode === "custom" && (
+                <p className="mt-2 text-xs text-warp-muted">
+                  Proposed: ${customRates.palletIn.toFixed(2)} in · ${customRates.palletOut.toFixed(2)} out · ${customRates.storagePerDay.toFixed(2)}/day storage — pending Warp approval
+                </p>
+              )}
             </ChecklistRow>
 
             {/* SOPs */}
@@ -565,13 +740,13 @@ export default function PortalPage() {
             </ChecklistRow>
 
             {/* Test scan-in */}
-            <ChecklistRow done={scanInOk} label="Complete a test scan-in" desc="Identify a route by QR code (BOL/Load Tender) or Route ID. Scan pallet labels — pallets auto-mark as checked in." icon={ScanBarcode} optional={false}>
-              {!scanInOk && <GreenBtn onClick={() => setScanInOk(true)}>Mark done</GreenBtn>}
+            <ChecklistRow done={scanInOk} label="Complete a mock test scan-in" desc="Practice scenario: identify a test route by QR code (BOL/Load Tender) or Route ID. Scan pallet labels — Warp verifies check-in syncs to the real system under your WTCH code." icon={ScanBarcode} optional={false}>
+              {!scanInOk && <GreenBtn onClick={() => setScanInOk(true)}>Mark mock scan-in done</GreenBtn>}
             </ChecklistRow>
 
             {/* Test scan-out */}
-            <ChecklistRow done={scanOutOk} label="Complete a test scan-out" desc="Use Bulk Scan Out on the route screen. Scan all pallets, then tap Complete. Both inbound and outbound lists should be empty by end of day." icon={ScanBarcode} optional={false}>
-              {!scanOutOk && <GreenBtn onClick={() => setScanOutOk(true)}>Mark done</GreenBtn>}
+            <ChecklistRow done={scanOutOk} label="Complete a mock test scan-out" desc="Practice scenario: use Bulk Scan Out on the route screen. Scan all pallets, tap Complete. Confirms your outbound workflow before live freight." icon={ScanBarcode} optional={false}>
+              {!scanOutOk && <GreenBtn onClick={() => setScanOutOk(true)}>Mark mock scan-out done</GreenBtn>}
             </ChecklistRow>
 
             {/* Activation */}
@@ -934,50 +1109,115 @@ export default function PortalPage() {
       {/* ═══ RATE CARD MODAL ═══ */}
       {showRateModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-warp-border bg-warp-elevated shadow-2xl">
+          <div className="w-full max-w-lg rounded-2xl border border-warp-border bg-warp-elevated shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="border-b border-warp-border px-6 py-5">
               <h2 className="text-lg font-bold text-white">
-                Warp standard rate card
+                Rate card
               </h2>
               <p className="text-sm text-warp-muted">
-                Effective {DEFAULT_RATE_CARD.effectiveDate}
+                Accept Warp&apos;s standard rates or propose your own for ops review
               </p>
             </div>
             <div className="px-6 py-5">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-warp-border">
-                    <th className="py-2 text-left text-xs font-medium text-warp-muted">Service</th>
-                    <th className="py-2 text-right text-xs font-medium text-warp-muted">Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-warp-border">
-                  {[
-                    { svc: "Pallet in (receiving scan)", rate: `$${DEFAULT_RATE_CARD.palletIn.toFixed(2)}` },
-                    { svc: "Pallet out (departure scan)", rate: `$${DEFAULT_RATE_CARD.palletOut.toFixed(2)}` },
-                    { svc: "Storage (per pallet / day)", rate: `$${DEFAULT_RATE_CARD.storagePerDay.toFixed(2)}` },
-                    { svc: "After-hours / outside normal hours", rate: data.facility.afterHoursFee != null ? `$${data.facility.afterHoursFee.toFixed(2)}` : "Set per dock" },
-                    { svc: "Holiday open", rate: data.facility.holidayFee != null ? `$${data.facility.holidayFee.toFixed(2)}` : "Set per dock" },
-                  ].map((r) => (
-                    <tr key={r.svc}>
-                      <td className="py-3 text-warp-text">{r.svc}</td>
-                      <td className="py-3 text-right font-semibold text-warp-green">{r.rate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-4 text-xs text-warp-muted">
-                Pallet-in, pallet-out, and storage are standard Warp rates. After-hours and holiday fees are set per dock during registration — they aren&apos;t standardized, since demand varies by lane (e.g. opening late on inbound days and early on outbound days for a specific client).
-              </p>
+              <div className="flex gap-1 rounded-lg bg-warp-bg p-0.5">
+                {(["default", "custom"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setRateMode(mode)}
+                    className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                      rateMode === mode
+                        ? "bg-warp-card text-warp-text"
+                        : "text-warp-muted hover:text-warp-secondary"
+                    }`}
+                  >
+                    {mode === "default" ? "Accept standard rates" : "Propose custom rates"}
+                  </button>
+                ))}
+              </div>
+
+              {rateMode === "default" ? (
+                <>
+                  <p className="mt-4 text-xs text-warp-muted">
+                    Effective {DEFAULT_RATE_CARD.effectiveDate}
+                  </p>
+                  <table className="mt-3 w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-warp-border">
+                        <th className="py-2 text-left text-xs font-medium text-warp-muted">Service</th>
+                        <th className="py-2 text-right text-xs font-medium text-warp-muted">Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-warp-border">
+                      {[
+                        { svc: "Pallet in (receiving scan)", rate: `$${DEFAULT_RATE_CARD.palletIn.toFixed(2)}` },
+                        { svc: "Pallet out (departure scan)", rate: `$${DEFAULT_RATE_CARD.palletOut.toFixed(2)}` },
+                        { svc: "Storage (per pallet / day)", rate: `$${DEFAULT_RATE_CARD.storagePerDay.toFixed(2)}` },
+                        { svc: "Extended hours (inbound after close / early outbound)", rate: afterHoursAny && data.facility.afterHoursFee != null ? `$${data.facility.afterHoursFee.toFixed(2)}` : afterHoursAny ? "Fee required" : "Not offered" },
+                        { svc: "Holiday operations", rate: data.facility.holidayWilling && data.facility.holidayFee != null ? `$${data.facility.holidayFee.toFixed(2)}` : data.facility.holidayWilling ? "Fee required" : "Not offered" },
+                      ].map((r) => (
+                        <tr key={r.svc}>
+                          <td className="py-3 text-warp-text">{r.svc}</td>
+                          <td className="py-3 text-right font-semibold text-warp-green">{r.rate}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-4 text-xs text-warp-muted">
+                    Pallet-in, pallet-out, and storage are standard Warp rates. Extended-hours and holiday fees come from your registration answers.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  <p className="text-xs text-warp-secondary">
+                    If the standard rate card doesn&apos;t work for your facility, enter your proposed rates below. Warp ops will review and approve before you receive live freight.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <DarkInput
+                      label="Pallet in ($)"
+                      type="number"
+                      value={customRates.palletIn.toString()}
+                      onChange={(v) => setCustomRates((prev) => ({ ...prev, palletIn: v ? Number(v) : 0 }))}
+                      placeholder="8.50"
+                    />
+                    <DarkInput
+                      label="Pallet out ($)"
+                      type="number"
+                      value={customRates.palletOut.toString()}
+                      onChange={(v) => setCustomRates((prev) => ({ ...prev, palletOut: v ? Number(v) : 0 }))}
+                      placeholder="8.50"
+                    />
+                    <DarkInput
+                      label="Storage / day ($)"
+                      type="number"
+                      value={customRates.storagePerDay.toString()}
+                      onChange={(v) => setCustomRates((prev) => ({ ...prev, storagePerDay: v ? Number(v) : 0 }))}
+                      placeholder="3.00"
+                    />
+                  </div>
+                  <div className="rounded-lg border border-amber-500/30 bg-warp-amber-dim p-3">
+                    <p className="text-xs text-warp-secondary">
+                      Custom pallet and storage rates require Warp approval. Extended-hours and holiday fees still use what you entered during registration.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-6 flex justify-end gap-3">
                 <button onClick={() => setShowRateModal(false)} className="rounded-full border border-warp-border px-4 py-2 text-sm text-warp-secondary hover:border-warp-border-light">
                   Cancel
                 </button>
                 <button
-                  onClick={() => { setRateAccepted(true); setShowRateModal(false); }}
-                  className="rounded-full bg-warp-green px-5 py-2 text-sm font-semibold text-warp-bg hover:bg-warp-green-dim"
+                  onClick={() => {
+                    if (rateMode === "custom" && (customRates.palletIn <= 0 || customRates.palletOut <= 0 || customRates.storagePerDay <= 0)) {
+                      return;
+                    }
+                    setRateAccepted(true);
+                    setShowRateModal(false);
+                  }}
+                  disabled={rateMode === "custom" && (customRates.palletIn <= 0 || customRates.palletOut <= 0 || customRates.storagePerDay <= 0)}
+                  className="rounded-full bg-warp-green px-5 py-2 text-sm font-semibold text-warp-bg hover:bg-warp-green-dim disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  I accept these rates
+                  {rateMode === "default" ? "I accept these rates" : "Submit custom rates for review"}
                 </button>
               </div>
             </div>

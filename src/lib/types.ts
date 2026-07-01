@@ -6,6 +6,10 @@ export type OnboardingStatus =
   | "active"
   | "rejected";
 
+export type PrinterSetup = "regular" | "label" | "both" | "none";
+
+export type RateCardMode = "default" | "custom";
+
 export interface WarehouseProfile {
   id: string;
   name: string;
@@ -25,11 +29,13 @@ export interface WarehouseProfile {
     dockDoors: number | null;
     fullTimeEmployees: number | null;
     storageType: "covered" | "outdoor" | "both" | "";
-    // Willing to work outside normal operating hours (after-hours / before-open)
-    afterHoursWilling: boolean;
+    // Receive inbound freight after normal closing time
+    afterHoursInboundWilling: boolean;
+    // Re-open before normal start time for outbound pickup
+    afterHoursOutboundWilling: boolean;
     // Dock-set fee per after-hours occurrence (not standardized by Warp)
     afterHoursFee: number | null;
-    // Willing to open on holidays
+    // Willing to open on observed US holidays when Warp requests
     holidayWilling: boolean;
     // Dock-set fee per holiday occurrence
     holidayFee: number | null;
@@ -48,17 +54,27 @@ export interface WarehouseProfile {
   };
   techReadiness: {
     hasDevices: boolean | null;
-    hasLabelPrinter: boolean | null;
-    hasFloorInternet: boolean | null;
+    printerSetup: PrinterSetup | null;
+    // Wi-Fi on dock floor is required — cell-only does not qualify
+    hasWifiOnDockFloor: boolean | null;
+    hasSecurityCameras: boolean | null;
   };
   onboardingStatus: OnboardingStatus;
   onboardingStep: number;
   createdAt: string;
 }
 
+export interface CustomRateProposal {
+  palletIn: number;
+  palletOut: number;
+  storagePerDay: number;
+}
+
 export interface SetupChecklist {
   rateTermsAccepted: boolean;
   rateTermsAcceptedAt: string | null;
+  rateCardMode: RateCardMode | null;
+  customRates: CustomRateProposal | null;
   trainingScheduled: boolean;
   mobileAppInstalled: boolean;
   desktopAppInstalled: boolean;

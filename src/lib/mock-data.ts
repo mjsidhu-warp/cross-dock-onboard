@@ -25,6 +25,13 @@ export const WARP_MARKETS = [
   "BNA — Nashville",
 ];
 
+export const PRINTER_SETUP_OPTIONS = [
+  { value: "regular", label: "Regular" },
+  { value: "label", label: "Label" },
+  { value: "both", label: "Both" },
+  { value: "none", label: "None" },
+] as const;
+
 export const DEFAULT_RATE_CARD: RateCard = {
   palletIn: 8.5,
   palletOut: 8.5,
@@ -46,7 +53,8 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
     dockDoors: null,
     fullTimeEmployees: null,
     storageType: "",
-    afterHoursWilling: false,
+    afterHoursInboundWilling: false,
+    afterHoursOutboundWilling: false,
     afterHoursFee: null,
     holidayWilling: false,
     holidayFee: null,
@@ -67,8 +75,9 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
   },
   techReadiness: {
     hasDevices: null,
-    hasLabelPrinter: null,
-    hasFloorInternet: null,
+    printerSetup: null,
+    hasWifiOnDockFloor: null,
+    hasSecurityCameras: null,
   },
   onboardingStatus: "draft",
   onboardingStep: 0,
@@ -78,6 +87,8 @@ export const EMPTY_WAREHOUSE: WarehouseProfile = {
 export const EMPTY_SETUP: SetupChecklist = {
   rateTermsAccepted: false,
   rateTermsAcceptedAt: null,
+  rateCardMode: null,
+  customRates: null,
   trainingScheduled: false,
   mobileAppInstalled: false,
   desktopAppInstalled: false,
